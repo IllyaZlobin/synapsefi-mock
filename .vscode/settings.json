@@ -1,0 +1,26 @@
+{
+    "files.eol": "\n",
+    "files.exclude": {
+      "node_modules": true,
+      ".build": true,
+      ".sst": true,
+    },
+    "eslint.packageManager": "npm",
+    "javascript.preferences.importModuleSpecifier": "non-relative",
+    "typescript.preferences.importModuleSpecifier": "non-relative",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": true
+    },
+    "eslint.validate": ["javascript", "typescript"],
+    "eslint.format.enable": true,
+    "[javascript]": {
+      "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+      "editor.formatOnSave": false
+    },
+    "[typescript]": {
+      "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+      "editor.formatOnSave": false
+    },
+    "typescript.tsdk": "node_modules/typescript/lib"
+  }
+  
