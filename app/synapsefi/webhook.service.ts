@@ -2,7 +2,7 @@
 import { HttpService } from "@nestjs/axios";
 import { Injectable } from "@nestjs/common";
 import { firstValueFrom, lastValueFrom } from "rxjs";
-import { CipPermission, UserCipType } from "./constants/cip-type.enum";
+import { CipPermission, UserCipType } from "./constants/cip";
 import { IDocument } from "./models/document";
 import { IUser } from "./models/user";
 

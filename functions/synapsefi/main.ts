@@ -1,6 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable @typescript-eslint/naming-convention */
-import { UserCipType } from "@app/synapsefi/constants/cip-type.enum";
+import { UserCipType } from "@app/synapsefi/constants/cip";
 import { SynapsefiService } from "@app/synapsefi/service";
 import { fromBody, fromParams } from "@app/utils/dto.utils";
 import {
@@ -9,10 +9,9 @@ import {
   withNestJs,
 } from "@app/utils/function.utils";
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import shortid from "shortid";
-import { BadRequestException } from "@nestjs/common";
-import { UserService } from "@app/synapsefi/user.service";
-import { SubnetService } from "@app/synapsefi/subnet.service";
+import { IdUtils } from "@app/utils/id.utils";
+import { SubnetUtils } from "@app/utils/subnet.utils";
+import { nonNull } from "@app/utils/nonNull";
 import { AuthenticateDto } from "./dtos/authenticate.dto";
 import { CreateNodeDto, CreateNodeParamsDto } from "./dtos/create-node.dto";
 import {
@@ -33,7 +32,19 @@ export const test = withHttpErrors(
     SynapsefiLambdaModule,
     async (app, e) => {
       const service = await app.resolve(SynapsefiService);
-      return getSuccessfulRespObj(service.test());
+      const userId = IdUtils.generateUserId(UserCipType.cip_three);
+      const nodeId = IdUtils.generateNodeId(userId);
+      const subnetId = IdUtils.generateSubnetId(userId, nodeId);
+      const tinySubnetId = nonNull(subnetId.split("|").at(-1)).value;
+      const cvc = tinySubnetId.slice(1, 4);
+      const cardNumber = SubnetUtils.generateCardNumber(subnetId);
+      return getSuccessfulRespObj({
+        subnetId,
+        tinySubnetId,
+        cvc,
+        userId,
+        cardNumber,
+      });
     }
   )
 );
@@ -60,13 +71,7 @@ export const getUser = withHttpErrors(
   withNestJs<APIGatewayProxyHandlerV2<any>>(
     SynapsefiLambdaModule,
     async (app, e) => {
-      const userService = await app.resolve(UserService);
       const { userId } = await fromParams(GetUserDto, e.pathParameters ?? {});
-      const isValid = await userService.isExist(userId);
-
-      if (!isValid) {
-        throw new BadRequestException("Invalid user");
-      }
       return getSuccessfulRespObj({ _id: userId, data: {} });
     }
   )
@@ -140,9 +145,9 @@ export const createSubnet = withHttpErrors(
         e.body
       );
       const result = await synapsefiService.createSubnet({
-        supp_id,
-        node_id: nodeId,
-        user_id: userId,
+        suppId: supp_id,
+        nodeId,
+        userId,
         account_class,
         nickname,
       });
@@ -179,16 +184,15 @@ export const getSubnet = withHttpErrors(
   withNestJs<APIGatewayProxyHandlerV2<any>>(
     SynapsefiLambdaModule,
     async (app, e) => {
-      const subnetService = await app.resolve(SubnetService);
-
-      const { nodeId, subnetId, userId } = await fromParams(
+      const { subnetId } = await fromParams(
         UpdateSubnetParamsDto,
         e.pathParameters ?? {}
       );
 
-      const subnet = await subnetService.getOne({ nodeId, subnetId, userId });
+      const cardNumber = SubnetUtils.generateCardNumber(subnetId, true);
+      const cvc = SubnetUtils.getCvv(subnetId);
 
-      return getSuccessfulRespObj(subnet);
+      return getSuccessfulRespObj({ cvc, card_number: cardNumber });
     }
   )
 );
@@ -197,7 +201,7 @@ export const shipCard = withHttpErrors(
   withNestJs<APIGatewayProxyHandlerV2<any>>(
     SynapsefiLambdaModule,
     async (app, e) => {
-      return getSuccessfulRespObj({ _id: shortid.generate() });
+      return getSuccessfulRespObj({ _id: IdUtils.generate() });
     }
   )
 );
@@ -219,15 +223,11 @@ export const getAllSubnets = withHttpErrors(
   withNestJs<APIGatewayProxyHandlerV2<any>>(
     SynapsefiLambdaModule,
     async (app, e) => {
-      const subnetService = await app.resolve(SubnetService);
       const { userId, nodeId } = await fromParams(
         GetSubnetsDto,
         e.pathParameters ?? {}
       );
-
-      const subnets = await subnetService.getAll({ nodeId, userId });
-
-      return { subnets_count: subnets.length };
+      return { subnets_count: 0 }; // TODO Subnets count always 0
     }
   )
 );

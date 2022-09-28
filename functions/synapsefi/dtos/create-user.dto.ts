@@ -1,4 +1,4 @@
-import { UserCipType } from "@app/synapsefi/constants/cip-type.enum";
+import { UserCipType } from "@app/synapsefi/constants/cip";
 import { Type } from "class-transformer";
 import {
   IsArray,

@@ -1,45 +1,37 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 /* eslint-disable new-cap */
 /* eslint-disable class-methods-use-this */
-import { Node, NodeDocument } from "@app/database/schemas/node.schema";
-import { Subnet, SubnetDocument } from "@app/database/schemas/subnet.schema";
-import { User, UserDocument } from "@app/database/schemas/user.schema";
+import { Node } from "@app/synapsefi/models/node";
+import { Subnet } from "@app/synapsefi/models/subnet";
+import { User } from "@app/synapsefi/models/user";
 import { DateUtils } from "@app/utils/date.utils";
-import { ShortId } from "@app/utils/id.utils";
+import { IdUtils } from "@app/utils/id.utils";
+import { nonNull } from "@app/utils/nonNull";
+import { SubnetUtils } from "@app/utils/subnet.utils";
 import { faker } from "@faker-js/faker";
-import { BadRequestException, Injectable } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import { UserCipType } from "./constants/cip-type.enum";
+import { Injectable } from "@nestjs/common";
+import { UserCipType } from "./constants/cip";
 import { WebHookService } from "./webhook.service";
 
 @Injectable()
 export class SynapsefiService {
-  constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(Node.name) private readonly nodeModel: Model<NodeDocument>,
-    @InjectModel(Subnet.name)
-    private readonly subnetModel: Model<SubnetDocument>,
-    private readonly whService: WebHookService
-  ) {}
+  constructor(private readonly whService: WebHookService) {}
 
   async createUser(i: CreateUserInput) {
-    const user = new this.userModel({
-      id: ShortId.generate(),
+    const user = new User({
+      id: IdUtils.generateUserId(i.cip_tag),
       email: i.email,
       cip_tag: i.cip_tag,
-      refresh_token: ShortId.generate(),
+      refresh_token: "",
     });
 
     if (i.documents) {
       const documents = i.documents.map((x) => ({
         ...x,
-        id: ShortId.generate(),
+        id: IdUtils.generate(),
       }));
       user.documents = documents;
     }
-
-    await user.save();
 
     await this.whService.triggerKyc(user);
     return {
@@ -51,25 +43,15 @@ export class SynapsefiService {
   }
 
   async createNode(i: CreateNodeInput) {
-    const { type, supp_id, info } = i;
-    const user = await this.userModel.findOne({ id: i.userId });
+    const { type, supp_id, info, userId } = i;
 
-    if (!user) {
-      throw new BadRequestException("User not found");
-    }
-
-    const node = new this.nodeModel({
-      id: ShortId.generate(),
-      user,
+    const node = new Node({
+      id: IdUtils.generateNodeId(userId),
       type,
-      extra: {
-        supp_id,
-        note: "",
-      },
       info,
+      userId,
+      extra: { note: "", supp_id },
     });
-
-    await node.save();
 
     await this.whService.triggerNode({
       _rest: {
@@ -85,56 +67,38 @@ export class SynapsefiService {
   }
 
   async createSubnet(i: CreateSubnetInput) {
-    const { account_class, nickname, supp_id } = i;
+    const { account_class, nickname, suppId, nodeId, userId } = i;
 
-    const node = await this.nodeModel
-      .findOne({ id: i.node_id })
-      .populate("user");
+    const id = IdUtils.generateSubnetId(userId, nodeId);
 
-    if (!node) {
-      throw new BadRequestException("Node not found");
-    }
-
-    const user = await this.userModel.findOne({ id: i.user_id });
-
-    if (!user) {
-      throw new BadRequestException("User not found");
-    }
-
-    if (node.user.id !== user.id) {
-      throw new BadRequestException("User is not node owner");
-    }
-
-    const subnet = new this.subnetModel({
-      id: ShortId.generate(),
-      supp_id,
-      user,
-      node,
+    const subnet = new Subnet({
+      id,
+      supp_id: suppId,
+      userId,
+      nodeId,
       account_class,
       nickname,
       status: "ACTIVE",
       status_code: "USER_REQUESTED",
       account_num: faker.finance.account(),
-      card_number: faker.finance.creditCardNumber(),
+      card_number: SubnetUtils.generateCardNumber(id),
       exp: DateUtils.generateExp(),
       routing_num: {
         ach: faker.finance.routingNumber(),
         wire: faker.finance.routingNumber(),
       },
-      cvc: faker.finance.creditCardCVV(),
+      cvc: SubnetUtils.getCvv(id),
     });
-
-    await subnet.save();
 
     await this.whService.triggerSubnet({
       type: "create",
       _rest: {
-        supp_id,
+        supp_id: suppId,
         _id: subnet.id,
-        status: subnet.status,
-        status_code: subnet.status_code,
+        status: nonNull(subnet.status).value,
+        status_code: nonNull(subnet.status_code).value,
         node: {
-          id: node.id,
+          id: nodeId,
         },
         account_num: subnet.account_num,
         card_number: subnet.card_number,
@@ -147,33 +111,28 @@ export class SynapsefiService {
   }
 
   async updateSubnet(i: UpdateSubnetInput) {
-    const { nodeId, subnetId, userId, status } = i;
+    const { nodeId, subnetId, userId, status, supp_id } = i;
 
-    const subnet = await this.subnetModel
-      .findOne({ id: subnetId })
-      .populate(["user", "node"]);
-
-    if (!subnet) {
-      throw new BadRequestException("Subnet not found");
-    }
-
-    if (subnet.node.id !== nodeId || subnet.user.id !== userId) {
-      throw new BadRequestException("User is not node owner");
-    }
+    const subnet = new Subnet({
+      id: subnetId,
+      supp_id,
+      userId,
+      nodeId,
+      status: "ACTIVE",
+      status_code: "USER_REQUESTED",
+    });
 
     subnet.status = status;
 
     if (i.supp_id) subnet.supp_id = i.supp_id;
 
-    await subnet.save();
-
     await this.whService.triggerSubnet({
       type: "update",
       _rest: {
-        supp_id: subnet.supp_id,
+        supp_id: subnet.supp_id ?? "",
         _id: subnet.id,
         status: subnet.status,
-        status_code: subnet.status_code,
+        status_code: nonNull(subnet.status_code).value,
         node: { id: nodeId },
       },
     });
@@ -254,9 +213,9 @@ interface UpdateSubnetInput {
 }
 
 interface CreateSubnetInput {
-  node_id: string;
-  user_id: string;
-  supp_id: string;
+  nodeId: string;
+  userId: string;
+  suppId: string;
   account_class: string;
   nickname: string;
 }

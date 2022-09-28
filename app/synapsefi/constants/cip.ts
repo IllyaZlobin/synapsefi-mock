@@ -4,3 +4,6 @@ export enum UserCipType {
 }
 
 export type CipPermission = "SEND-AND-RECEIVE" | "RECEIVE" | "UNVERIFIED";
+
+export const UserCipOneId = "hi9AsPXww";
+export const UserCipThreeId = "yZuMxm-SY";
