@@ -23,6 +23,9 @@ export default {
   // shipCard
   "PATCH /users/{userId}/nodes/{nodeId}/subnets/{subnetId}/ship":
     "functions/synapsefi/main.shipCard",
+  // getCardShipment
+  "GET /users/{userId}/nodes/{nodeId}/subnets/{subnetId}/ship/{shipmentId}":
+    "functions/synapsefi/main.getCardShipment",
   // getAllSubnets
   "GET /users/{userId}/nodes/{nodeId}/subnets":
     "functions/synapsefi/main.getAllSubnets",

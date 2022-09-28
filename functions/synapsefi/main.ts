@@ -12,6 +12,7 @@ import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { IdUtils } from "@app/utils/id.utils";
 import { SubnetUtils } from "@app/utils/subnet.utils";
 import { nonNull } from "@app/utils/nonNull";
+import { GetCardShipmentDto } from "functions/synapsefi/dtos/get-card-shipment.dto";
 import { AuthenticateDto } from "./dtos/authenticate.dto";
 import { CreateNodeDto, CreateNodeParamsDto } from "./dtos/create-node.dto";
 import {
@@ -206,6 +207,21 @@ export const shipCard = withHttpErrors(
   )
 );
 
+export const getCardShipment = withHttpErrors(
+  withNestJs<APIGatewayProxyHandlerV2<any>>(
+    SynapsefiLambdaModule,
+    async (app, e) => {
+      const { nodeId, shipmentId, subnetId, userId } = await fromParams(
+        GetCardShipmentDto,
+        e.pathParameters ?? {}
+      );
+      return getSuccessfulRespObj({
+        _id: IdUtils.generate(),
+        card_style_id: "660",
+      });
+    }
+  )
+);
 export const authenticate = withHttpErrors(
   withNestJs<APIGatewayProxyHandlerV2<any>>(
     SynapsefiLambdaModule,
